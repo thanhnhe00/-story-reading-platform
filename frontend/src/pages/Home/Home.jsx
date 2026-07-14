@@ -1,102 +1,78 @@
-import React, { useState, useEffect } from 'react';
-import { Link } from 'react-router-dom';
-import { Star, Clock } from 'lucide-react';
-import Sidebar from '../../components/layout/Sidebar';
-import api from '../../utils/api';
+import { useState, useEffect } from 'react';
+import { Flame, TrendingUp, Clock } from 'lucide-react';
+import StoryGrid from '../../components/common/StoryGrid';
+import storyService from '../../api/storyService';
 import './Home.css';
 
-const Home = () => {
-  const [recommendedStories, setRecommendedStories] = useState([]);
-  const [newlyUpdated, setNewlyUpdated] = useState([]);
+export default function Home() {
+  const [latestStories, setLatestStories] = useState([]);
+  const [trendingStories, setTrendingStories] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
 
   useEffect(() => {
     const fetchStories = async () => {
       try {
-        const [trendingRes, latestRes] = await Promise.all([
-          api.get('/stories/trending?limit=5'),
-          api.get('/stories/latest?limit=8')
-        ]);
-        setRecommendedStories(trendingRes.data || []);
-        setNewlyUpdated(latestRes.data || []);
-      } catch {
-        setRecommendedStories([]);
-        setNewlyUpdated([]);
+        setLoading(true);
+        const latest = await storyService.getLatestStories(12);
+        setLatestStories(latest);
+        
+        // Giả sử BE có endpoint trending
+        // const trending = await storyService.getTrendingStories(12);
+        // setTrendingStories(trending);
+        setTrendingStories(latest.slice(0, 6)); // Tạm thời dùng latest làm trending
+      } catch (err) {
+        setError(err.message);
+        console.error('Error fetching stories:', err);
       } finally {
         setLoading(false);
       }
     };
+
     fetchStories();
   }, []);
 
-  const getStoryId = (s) => s.storyId || s.id;
+  if (error) {
+    return (
+      <div className="error-container">
+        <p>Lỗi: {error}</p>
+      </div>
+    );
+  }
 
   return (
-    <div className="container home-page">
-      <div className="home-content">
-        {loading ? (
-          <div style={{ padding: '40px', textAlign: 'center' }}>Đang tải dữ liệu...</div>
-        ) : (
-          <>
-        <section className="section">
-          <h2 className="section-title">
-            <Star size={20} /> Truyện đề cử
-          </h2>
-          {recommendedStories.length === 0 ? (
-            <div style={{ padding: '20px', textAlign: 'center', color: '#999' }}>Chưa có truyện đề cử nào.</div>
-          ) : (
-            <div className="recommended-grid">
-              {recommendedStories.map(story => (
-                <div key={getStoryId(story)} className="story-card card">
-                  <Link to={`/story/${getStoryId(story)}`} className="story-cover-wrapper">
-                    <img src={story.coverImage || 'https://via.placeholder.com/150'} alt={story.title} className="story-cover" />
-                  </Link>
-                  <div className="story-info">
-                    <Link to={`/story/${getStoryId(story)}`} className="story-title">{story.title}</Link>
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
-        </section>
+    <div className="home-page">
+      {/* Banner */}
+      <section className="home-banner">
+        <div className="banner-content">
+          <h1>Chào mừng đến Nền tảng Truyện Tranh</h1>
+          <p>Khám phá những câu chuyện tuyệt vời từ khắp nơi</p>
+        </div>
+      </section>
 
-        <section className="section">
-          <h2 className="section-title">
-            <Clock size={20} /> Truyện mới cập nhật
-          </h2>
-          {newlyUpdated.length === 0 ? (
-            <div style={{ padding: '20px', textAlign: 'center', color: '#999' }}>Chưa có truyện mới.</div>
-          ) : (
-            <div className="updated-grid">
-              {newlyUpdated.map(story => (
-                <div key={getStoryId(story)} className="updated-card card">
-                  <Link to={`/story/${getStoryId(story)}`} className="updated-cover-wrapper">
-                    <img src={story.coverImage || 'https://via.placeholder.com/150'} alt={story.title} className="updated-cover" />
-                  </Link>
-                  <div className="updated-info">
-                    <Link to={`/story/${getStoryId(story)}`} className="updated-title">{story.title}</Link>
-                    <ul className="chapter-list">
-                      {story.chapters?.map((chap, idx) => (
-                        <li key={idx} className="chapter-item">
-                          <Link to={`/read/${getStoryId(story)}/${chap.chapterId || chap.id}`} className="chapter-link">{chap.title || `Chương ${chap.chapterNumber}`}</Link>
-                        </li>
-                      ))}
-                    </ul>
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
-        </section>
-        </>
-        )}
-      </div>
+      {/* Trending Section */}
+      <section className="home-section">
+        <div className="section-header">
+          <div className="section-title">
+            <Flame size={24} className="icon-hot" />
+            <h2>🔥 Đang Hot</h2>
+          </div>
+          <a href="/hot" className="view-all">Xem tất cả →</a>
+        </div>
+        <StoryGrid stories={trendingStories} isLoading={loading} />
+      </section>
 
-      <div className="home-sidebar">
-        <Sidebar />
-      </div>
+      {/* Latest Section */}
+      <section className="home-section">
+        <div className="section-header">
+          <div className="section-title">
+            <Clock size={24} />
+            <h2>⏰ Cập nhật gần đây</h2>
+          </div>
+          <a href="/hot" className="view-all">Xem tất cả →</a>
+        </div>
+        <StoryGrid stories={latestStories} isLoading={loading} />
+      </section>
     </div>
   );
-};
-
-export default Home;
+}
