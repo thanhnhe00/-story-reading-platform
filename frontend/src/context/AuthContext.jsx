@@ -1,60 +1,75 @@
-import { createContext, useContext, useState, useEffect } from 'react';
+import { createContext, useContext, useState, useEffect, useCallback } from 'react';
+import authService from '../api/authService';
 
-const AuthContext = createContext(null);
+const AuthContext = createContext();
 
 export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
   const [token, setToken] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
 
+  // Initialize from localStorage
   useEffect(() => {
-    const savedToken = localStorage.getItem('token');
-    const savedUser = localStorage.getItem('user');
-    if (savedToken && savedUser) {
-      setToken(savedToken);
-      setUser(JSON.parse(savedUser));
+    const storedToken = localStorage.getItem('access_token');
+    const storedUser = localStorage.getItem('user');
+    if (storedToken && storedUser) {
+      setToken(storedToken);
+      setUser(JSON.parse(storedUser));
     }
     setLoading(false);
-
-    const handleStorage = () => {
-      const t = localStorage.getItem('token');
-      const u = localStorage.getItem('user');
-      setToken(t);
-      setUser(u ? JSON.parse(u) : null);
-    };
-    window.addEventListener('storage', handleStorage);
-    return () => window.removeEventListener('storage', handleStorage);
   }, []);
 
-  const loginUser = (tokenData, userData) => {
-    localStorage.setItem('token', tokenData);
-    localStorage.setItem('user', JSON.stringify(userData));
-    setToken(tokenData);
-    setUser(userData);
-    window.dispatchEvent(new Event('storage'));
-  };
+  const login = useCallback(async (username, password) => {
+    try {
+      setError(null);
+      const response = await authService.login({ username, password });
+      setToken(response.access_token);
+      setUser(response.user);
+      return response;
+    } catch (err) {
+      setError(err.response?.data?.message || 'Login failed');
+      throw err;
+    }
+  }, []);
 
-  const logout = () => {
-    localStorage.removeItem('token');
-    localStorage.removeItem('user');
-    setToken(null);
+  const register = useCallback(async (data) => {
+    try {
+      setError(null);
+      const response = await authService.register(data);
+      return response;
+    } catch (err) {
+      setError(err.response?.data?.message || 'Registration failed');
+      throw err;
+    }
+  }, []);
+
+  const logout = useCallback(() => {
+    authService.logout();
     setUser(null);
-    window.dispatchEvent(new Event('storage'));
+    setToken(null);
+  }, []);
+
+  const value = {
+    user,
+    token,
+    loading,
+    error,
+    login,
+    register,
+    logout,
+    isAuthenticated: !!token,
+    isAdmin: user?.role === 'ADMIN',
+    isCreator: user?.role === 'CREATOR',
   };
 
-  const isAuthenticated = !!token;
-  const isCreator = user?.role === 'CREATOR';
-  const isAdmin = user?.role === 'ADMIN';
-
-  return (
-    <AuthContext.Provider value={{ user, token, loading, loginUser, logout, isAuthenticated, isCreator, isAdmin }}>
-      {children}
-    </AuthContext.Provider>
-  );
+  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 };
 
 export const useAuth = () => {
-  const ctx = useContext(AuthContext);
-  if (!ctx) throw new Error('useAuth must be used within AuthProvider');
-  return ctx;
+  const context = useContext(AuthContext);
+  if (!context) {
+    throw new Error('useAuth must be used within AuthProvider');
+  }
+  return context;
 };
